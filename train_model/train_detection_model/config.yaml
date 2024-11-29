@@ -1,0 +1,5 @@
+train: C:\Users\trung\Documents\LapTrinh\Python\Study\Object_Detection\Face_Detection\dataset\dataset_processed\train\images
+val: C:\Users\trung\Documents\LapTrinh\Python\Study\Object_Detection\Face_Detection\dataset\dataset_processed\val\images
+
+nc: 1
+names: ['face']
