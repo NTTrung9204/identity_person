@@ -36,6 +36,7 @@ def process_images():
         identified_faces = identify_faces(faces, identity_embedding, img)
 
         for label, face, distance in identified_faces:
+            print(label, distance)
             if distance < min_distance:
                 min_distance = distance
                 result_label = label
@@ -59,24 +60,27 @@ def process_images():
                 "distance": float(min_distance)
             }
 
-
-
-
-
-    #     gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-    #     # Chuyển ảnh về định dạng gửi lại client
-    #     _, buffer = cv2.imencode('.jpg', gray_img)
-    #     processed_images.append(buffer)
-
-    # # Chọn một ảnh ngẫu nhiên từ danh sách
-    # if processed_images:
-    #     random_image = random.choice(processed_images)
-    #     random_image_io = io.BytesIO(random_image)
-    #     random_image_io.seek(0)
-    #     return send_file(random_image_io, mimetype='image/jpeg')
-
     return "No processed images", 500
+
+@app.route('/save_images', methods=['POST'])
+def save_images():
+    # Kiểm tra nếu không có file
+    if 'images' not in request.files:
+        return "No images provided", 400
+
+    images = request.files.getlist('images')  # Nhận danh sách các ảnh
+    print(f"Received {len(images)} images")
+
+    for file in images:
+        img = Image.open(file.stream)
+        img = np.array(img)
+        print(img.shape)
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        cv2.imwrite(f"result_collage/face_{random.randint(0, 100000)}.jpg", img)
+
+    return {
+        "status": "success"
+    }
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)

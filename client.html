@@ -62,8 +62,8 @@
                         context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
                         // Vẽ khung hình chữ nhật (vị trí chính giữa)
-                        const rectWidth = 150;
-                        const rectHeight = 200;
+                        const rectWidth = 160;
+                        const rectHeight = 160;
                         const rectX = (canvas.width - rectWidth) / 2;
                         const rectY = (canvas.height - rectHeight) / 2;
                         context.strokeStyle = 'red';
@@ -86,14 +86,23 @@
             recording = true;
 
             const formData = new FormData();
-            const rectWidth = 150;
-            const rectHeight = 200;
+            const rectWidth = 160;
+            const rectHeight = 160;
             const rectX = (canvas.width - rectWidth) / 2;
             const rectY = (canvas.height - rectHeight) / 2;
 
             // Chụp ảnh liên tục trong 2 giây
             const captureInterval = setInterval(() => {
                 context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                // Vẽ khung hình chữ nhật (vị trí chính giữa)
+                const rectWidth = 160;
+                const rectHeight = 160;
+                const rectX = (canvas.width - rectWidth) / 2;
+                const rectY = (canvas.height - rectHeight) / 2;
+                context.strokeStyle = 'red';
+                context.lineWidth = 2;
+                context.strokeRect(rectX, rectY, rectWidth, rectHeight);
 
                 // Cắt phần hình chữ nhật từ canvas
                 const croppedCanvas = document.createElement('canvas');
@@ -119,9 +128,6 @@
                         body: formData
                     });
                     if (response.ok) {
-                        // const imageBlob = await response.blob();
-                        // resultImg.src = URL.createObjectURL(imageBlob); // Hiển thị ảnh ngẫu nhiên trả về
-                        // console.log('Kết quả:', await response.json());
                         const data = await response.json();
                         const label = data.result;
                         const distance = data.distance;

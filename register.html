@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera Capture and Grayscale</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f4f4f9;
+        }
+
+        video,
+        canvas,
+        img {
+            border: 2px solid #333;
+            margin: 10px;
+            border-radius: 8px;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Camera Capture and Grayscale</h1>
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas" width="640" height="480"></canvas>
+    <button id="record">Ghi hình</button>
+    <img id="result" alt="Ảnh trả về sẽ hiển thị tại đây">
+    <h2 id="status"></h2>
+    <h3 id="time"></h3>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const context = canvas.getContext('2d');
+        const recordButton = document.getElementById('record');
+        const resultImg = document.getElementById('result');
+
+        let recording = false;
+
+        // Yêu cầu quyền truy cập camera
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => {
+                video.srcObject = stream;
+
+                // Vẽ khung hình chữ nhật lên video
+                video.addEventListener('play', () => {
+                    const drawRectangle = () => {
+                        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                        // Vẽ khung hình chữ nhật (vị trí chính giữa)
+                        const rectWidth = 160;
+                        const rectHeight = 160;
+                        const rectX = (canvas.width - rectWidth) / 2;
+                        const rectY = (canvas.height - rectHeight) / 2;
+                        context.strokeStyle = 'red';
+                        context.lineWidth = 2;
+                        context.strokeRect(rectX, rectY, rectWidth, rectHeight);
+
+                        if (!recording) requestAnimationFrame(drawRectangle); // Dừng khi đang ghi hình
+                    };
+
+                    drawRectangle();
+                });
+            })
+            .catch(err => {
+                console.error("Không thể truy cập camera: ", err);
+            });
+
+        // Ghi hình trong 2 giây và gửi ảnh lên server
+        recordButton.addEventListener('click', async () => {
+            if (recording) return; // Ngăn người dùng nhấn nhiều lần
+            recording = true;
+            var startTime = Date.now();
+
+            const formData = new FormData();
+            const rectWidth = 160;
+            const rectHeight = 160;
+            const rectX = (canvas.width - rectWidth) / 2;
+            const rectY = (canvas.height - rectHeight) / 2;
+
+            // Chụp ảnh liên tục trong 2 giây
+            const captureInterval = setInterval(() => {
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                // Vẽ khung hình chữ nhật (vị trí chính giữa)
+                const rectWidth = 160;
+                const rectHeight = 160;
+                const rectX = (canvas.width - rectWidth) / 2;
+                const rectY = (canvas.height - rectHeight) / 2;
+                context.strokeStyle = 'red';
+                context.lineWidth = 2;
+                context.strokeRect(rectX, rectY, rectWidth, rectHeight);
+
+
+                // Cắt phần hình chữ nhật từ canvas
+                const croppedCanvas = document.createElement('canvas');
+                const croppedContext = croppedCanvas.getContext('2d');
+                croppedCanvas.width = rectWidth;
+                croppedCanvas.height = rectHeight;
+                croppedContext.drawImage(canvas, rectX, rectY, rectWidth, rectHeight, 0, 0, rectWidth, rectHeight);
+
+                // Thêm ảnh vào FormData
+                croppedCanvas.toBlob(blob => {
+                    formData.append('images', blob, 'frame.jpg');
+                }, 'image/jpeg');
+
+                document.getElementById('time').textContent = `Đang ghi hình... ${31 - Math.floor((Date.now() - startTime) / 1000)} giây còn lại`;
+            }, 1000 / 5); // 50 FPS
+
+            // Sau 2 giây, dừng ghi hình và gửi ảnh lên server
+            setTimeout(async () => {
+                clearInterval(captureInterval);
+                recording = false;
+
+                try {
+                    const response = await fetch('http://127.0.0.1:5000/save_images', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    if (response.ok) {
+                        const data = await response.json();
+                        const status = data.status;
+
+                        if (status === 'success') {
+                            resultImg.src = data.result;
+                            document.getElementById('status').textContent = 'Đã lưu ảnh thành công';
+                        } else {
+                            console.error('Lỗi xử lý ảnh:', data.message);
+                        }
+                    } else {
+                        console.error('Lỗi xử lý ảnh:', await response.text());
+                    }
+                } catch (err) {
+                    console.error('Lỗi kết nối đến server:', err);
+                }
+            }, 31000); // Dừng sau 2 giây
+        });
+    </script>
+</body>
+
+</html>
