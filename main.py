@@ -8,6 +8,9 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import time
+from imutils.video import VideoStream
+import imutils
+from torchvision import transforms, models
 
 detection_model = YOLO("model/detection_model.pt")
 
@@ -74,6 +77,40 @@ def identify_faces(faces, identity_embedding, image):
         identified_faces.append((label, face, distance))
 
     return identified_faces
+
+model_path = 'model/real_fake_model.pth'  # Đường dẫn tới mô hình đã huấn luyện
+
+# Hàm load lại mô hình
+def load_model(model_path):
+    # Sử dụng mô hình ResNet18 đã huấn luyện sẵn
+    model = models.resnet18(pretrained=True)
+    model.fc = torch.nn.Linear(model.fc.in_features, 2)  # Chỉnh lại layer cuối cho 2 lớp
+    model.load_state_dict(torch.load(model_path))  # Tải trọng số của mô hình
+    model.eval()  # Đặt mô hình vào chế độ đánh giá (evaluation)
+    return model
+
+# Hàm nhận ảnh đầu vào và dự đoán
+def predict_real_fake_image(model, image):
+    # Định nghĩa các phép biến đổi ảnh
+    transform = transforms.Compose([
+        transforms.Resize((128, 128)),  # Thay đổi kích thước ảnh về 128x128
+        transforms.ToTensor(),  # Chuyển ảnh thành Tensor
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # Chuẩn hóa
+    ])
+
+    image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    
+    # Áp dụng các phép biến đổi vào ảnh
+    image = transform(image).unsqueeze(0)  # Thêm batch dimension (1, 3, 128, 128)
+    
+    # Dự đoán với mô hình
+    with torch.no_grad():  # Tắt tính toán gradient để tăng tốc
+        outputs = model(image)  # Thực hiện dự đoán
+        _, predicted = torch.max(outputs, 1)  # Lấy nhãn có xác suất cao nhất
+    
+    # Lớp dự đoán
+    class_names = ['fake', 'real']  # Danh sách tên lớp
+    return class_names[predicted.item()]  # Trả về tên lớp dự đoán
 
 
 # # image_path = "test/actual_test/test_identify_1.jpg"
@@ -162,3 +199,50 @@ def identify_faces(faces, identity_embedding, image):
 # cv2.destroyAllWindows()
 
 # print("Hoàn thành.")
+
+real_fake_model = load_model(model_path)
+
+folder_path = "identity"
+identity_embedding = extract_identity_embedding(folder_path)
+
+vs = VideoStream(src=0).start()
+time.sleep(2.0)  # Cho camera khởi động
+
+while True:
+    frame = vs.read()
+    if frame is None:  # Nếu không có khung hình từ camera
+        print("Không thể đọc khung hình từ video stream.")
+        break
+    
+    frame = imutils.resize(frame, width=800)  # Resize ảnh
+
+    # Phát hiện khuôn mặt
+    faces = detect_faces(frame)
+
+    # Nhận diện khuôn mặt
+    identified_faces = identify_faces(faces, identity_embedding, frame)
+
+    for label, face, distance in identified_faces:
+        x1, y1, x2, y2 = face
+        x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+
+        # Dự đoán ảnh thật hay giả
+        real_fake_label = predict_real_fake_image(real_fake_model, frame[y1:y2, x1:x2])
+
+        print(real_fake_label)
+
+        # Vẽ hình chữ nhật và thêm thông tin
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 0), 2)
+        cv2.putText(frame, label + real_fake_label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
+        cv2.putText(frame, f"Distance: {distance:.2f}", (x1, y2 + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
+
+    # Hiển thị khung hình
+    cv2.imshow("Frame", frame)
+    key = cv2.waitKey(1) & 0xFF
+
+    if key == ord("q"):
+        break
+
+cv2.destroyAllWindows()
+vs.stop()
+
